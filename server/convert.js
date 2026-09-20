@@ -8,29 +8,31 @@ const DAY_MS = 86400000;
 
 const pad = (num) => String(num).padStart(2, '0');
 
-// 日期要真存在，例如 2026-02-30 这种不能算数
-function validateDate(value) {
+// 日期要真存在，例如 2026-02-30 这种不能算数；field 让调用方决定问题标到哪个输入项上
+function validateDate(value, field) {
+  const target = field || 'date';
   const date = pickText(value);
-  if (!date) throw new ApiError(400, 'DATE_REQUIRED', '请填写日期', 'date');
+  if (!date) throw new ApiError(400, 'DATE_REQUIRED', '请填写日期', target);
   if (!DATE_PATTERN.test(date)) {
-    throw new ApiError(400, 'DATE_INVALID', '日期要写成四位年加短横线加两位月日，例如 2026-09-20', 'date');
+    throw new ApiError(400, 'DATE_INVALID', '日期要写成四位年加短横线加两位月日，例如 2026-09-20', target);
   }
   const [year, month, day] = date.split('-').map(Number);
   if (month < 1 || month > 12 || day < 1 || day > 31) {
-    throw new ApiError(400, 'DATE_INVALID', '这个日期不存在，请检查月份与日', 'date');
+    throw new ApiError(400, 'DATE_INVALID', '这个日期不存在，请检查月份与日', target);
   }
   const probe = new Date(Date.UTC(year, month - 1, day));
   if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) {
-    throw new ApiError(400, 'DATE_INVALID', '这个日期不存在，例如二月没有三十号', 'date');
+    throw new ApiError(400, 'DATE_INVALID', '这个日期不存在，例如二月没有三十号', target);
   }
   return { text: date, year, month, day };
 }
 
-function validateTime(value) {
+function validateTime(value, field) {
+  const target = field || 'time';
   const time = pickText(value);
-  if (!time) throw new ApiError(400, 'TIME_REQUIRED', '请填写时刻', 'time');
+  if (!time) throw new ApiError(400, 'TIME_REQUIRED', '请填写时刻', target);
   if (!TIME_PATTERN.test(time)) {
-    throw new ApiError(400, 'TIME_INVALID', '时刻要写成两位小时加冒号加两位分钟，例如 09:30', 'time');
+    throw new ApiError(400, 'TIME_INVALID', '时刻要写成两位小时加冒号加两位分钟，例如 09:30', target);
   }
   const [hour, minute] = time.split(':').map(Number);
   return { text: time, hour, minute };

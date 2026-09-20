@@ -61,6 +61,15 @@ app.post('/api/convert', (req, res) => {
   }
 });
 
+// 反推：给对方时区的一个当地时刻，推出我们这边对应的时刻（含夏令时）
+app.post('/api/reverse', (req, res) => {
+  try {
+    res.json(api.reverse(req.body || {}));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 // 未匹配到的接口路径统一返回说明，避免前端拿到一串页面内容
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: { code: 'API_NOT_FOUND', message: '接口不存在', field: '' } });

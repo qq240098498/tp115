@@ -155,12 +155,23 @@ function renderZones() {
 }
 
 function renderConvertZoneOptions() {
-  const select = el('convert-zone');
-  const current = select.value;
-  select.innerHTML = state.zones
+  const options = state.zones
     .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}　${escapeHtml(item.displayName)}</option>`)
     .join('');
-  if (state.zones.some((item) => item.id === current)) select.value = current;
+  const fill = (id, preferredName) => {
+    const select = el(id);
+    const current = select.value;
+    select.innerHTML = options;
+    if (state.zones.some((item) => item.id === current)) {
+      select.value = current;
+      return;
+    }
+    const preferred = preferredName && state.zones.find((item) => item.name === preferredName);
+    if (preferred) select.value = preferred.id;
+  };
+  fill('convert-zone');
+  fill('reverse-target-zone');
+  fill('reverse-source-zone', 'Asia/Shanghai');
 }
 
 function openZoneForm(zone) {
@@ -280,6 +291,64 @@ function renderConvert(result) {
   el('convert-empty').classList.toggle('hidden', result.results.length > 0);
 }
 
+async function runReverse() {
+  clearNotice();
+  const payload = {
+    date: el('reverse-date').value,
+    time: el('reverse-time').value,
+    targetZoneId: el('reverse-target-zone').value,
+    sourceZoneId: el('reverse-source-zone').value,
+  };
+  try {
+    const result = await request('/api/reverse', { method: 'POST', body: JSON.stringify(payload) });
+    renderReverse(result);
+  } catch (err) {
+    notify(err.message, 'error');
+    markField(err.field);
+  }
+}
+
+function dstTag(dst) {
+  return dst ? '<span class="tag on">夏令时</span>' : '<span class="tag off">标准时</span>';
+}
+
+function renderReverse(result) {
+  el('reverse-result').classList.remove('hidden');
+  el('reverse-meta').textContent = `对方 ${result.input.targetZoneName}（${result.input.targetZoneDisplayName}）的 ${result.input.date} ${result.input.time}，反推到我们这边 ${result.input.sourceZoneName}（${result.input.sourceZoneDisplayName}）`;
+  const status = el('reverse-status');
+  status.textContent = result.statusText;
+  status.className = `reverse-status ${result.status}`;
+
+  const hasMatches = result.matches.length > 0;
+  el('reverse-table-wrap').classList.toggle('hidden', !hasMatches);
+  el('reverse-body').innerHTML = result.matches.map((item) => {
+    const orderText = result.matches.length === 2
+      ? `<span class="tag warn">${item.order === 1 ? '先（第 1 个）' : '后（第 2 个）'}</span>`
+      : '—';
+    return `<tr>
+      <td>${orderText}</td>
+      <td class="mono">${escapeHtml(item.sourceDate)}</td>
+      <td class="mono">${escapeHtml(item.sourceTime)}</td>
+      <td>${escapeHtml(item.sourceWeekday)}</td>
+      <td><span class="tag ${item.sourceDayOffset === 0 ? 'off' : 'warn'}">${escapeHtml(item.sourceDayOffsetText)}</span></td>
+      <td class="mono">${escapeHtml(item.sourceOffsetText)} ${dstTag(item.sourceDst)}</td>
+      <td class="mono">${escapeHtml(item.targetOffsetText)} ${dstTag(item.targetDst)}</td>
+      <td class="mono">${escapeHtml(item.utcDate)} ${escapeHtml(item.utcTime)}</td>
+    </tr>`;
+  }).join('');
+
+  const verify = el('reverse-verify');
+  if (result.verification) {
+    verify.classList.remove('hidden');
+    verify.className = `verify-box ${result.verification.ok ? 'ok' : 'bad'}`;
+    const lines = result.matches.map((item) => `<li>我们这边 ${escapeHtml(item.sourceDate)} ${escapeHtml(item.sourceTime)}（${escapeHtml(item.sourceOffsetText)}）正推回对方当地：${escapeHtml(item.verify.date)} ${escapeHtml(item.verify.time)}，${item.verify.ok ? '与输入一致' : '与输入不一致'}</li>`).join('');
+    verify.innerHTML = `<strong>正推校验：${result.verification.ok ? '通过' : '未通过'}</strong>　${escapeHtml(result.verification.text)}<ul>${lines}</ul>`;
+  } else {
+    verify.classList.add('hidden');
+    verify.innerHTML = '';
+  }
+}
+
 // 列表上的操作用事件委托统一处理，列表重绘之后不需要重新绑定
 document.addEventListener('click', async (event) => {
   const node = event.target.closest('button');
@@ -330,6 +399,7 @@ el('zone-filter-dst').addEventListener('change', () => {
   loadZones().catch((err) => notify(err.message, 'error'));
 });
 el('convert-run').addEventListener('click', runConvert);
+el('reverse-run').addEventListener('click', runReverse);
 el('operator').addEventListener('change', () => {
   window.localStorage.setItem(OPERATOR_KEY, currentOperator());
 });
@@ -341,4 +411,6 @@ loadHealth();
 const now = new Date();
 el('convert-date').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 el('convert-time').value = '09:30';
+el('reverse-date').value = el('convert-date').value;
+el('reverse-time').value = '09:30';
 loadZones().catch((err) => notify(err.message, 'error'));
