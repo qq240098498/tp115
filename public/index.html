@@ -10,7 +10,7 @@
   <header class="topbar">
     <div>
       <h1>时区与时间换算工作台</h1>
-      <p class="subtitle">登记各地时区与夏令时规则，把一个时刻换算到所有时区，看清华盛顿与上海谁先跨天</p>
+      <p class="subtitle">登记各地时区与夏令时规则，把一个时刻换算到所有时区，也能由对方的当地时刻反推我们这边是几点</p>
     </div>
     <div class="topbar-right">
       <label class="operator" data-field="operator">当前操作者
@@ -129,6 +129,40 @@
         </table>
       </div>
       <p class="empty-tip hidden" id="convert-empty">还没有换算结果</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>反推台</h2>
+        <div class="filters">
+          <label class="inline" data-field="reverseDate">对方当地日期<input id="reverse-date" type="date"></label>
+          <label class="inline" data-field="reverseTime">对方当地时刻<input id="reverse-time" placeholder="例如 09:30" maxlength="5"></label>
+          <label class="inline" data-field="targetZoneId">对方时区<select id="reverse-target-zone"></select></label>
+          <label class="inline" data-field="sourceZoneId">我们这边<select id="reverse-source-zone"></select></label>
+          <button type="button" id="reverse-run">反推我们这边</button>
+        </div>
+      </div>
+      <p class="convert-meta" id="reverse-meta">还没有反推过，填好对方那边的当地日期、时刻与时区，点右侧按钮</p>
+      <p class="reverse-status hidden" id="reverse-status"></p>
+      <div class="table-wrap">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>先后</th>
+              <th>对方当时</th>
+              <th>实际瞬间（UTC）</th>
+              <th>我们这边日期</th>
+              <th>我们这边时刻</th>
+              <th>星期</th>
+              <th>与对方日期</th>
+              <th>正推验证</th>
+            </tr>
+          </thead>
+          <tbody id="reverse-body"></tbody>
+        </table>
+      </div>
+      <p class="empty-tip hidden" id="reverse-empty">没有可列出的对应时刻</p>
+      <div class="verify-conclusion hidden" id="reverse-verify"></div>
     </section>
   </main>
 

@@ -5,6 +5,8 @@ const state = {
   counts: { total: 0, dstCount: 0, noDstCount: 0 },
   editingId: '',
   lastConvert: null,
+  lastReverse: null,
+  reverseDefaultsSet: false,
 };
 
 const MONTHS = [
@@ -131,7 +133,7 @@ async function loadZones() {
   state.zones = payload.zones || [];
   state.counts = { total: payload.total || 0, dstCount: payload.dstCount || 0, noDstCount: payload.noDstCount || 0 };
   renderZones();
-  renderConvertZoneOptions();
+  renderZoneSelects();
 }
 
 function renderZones() {
@@ -154,13 +156,24 @@ function renderZones() {
   el('zone-empty').classList.toggle('hidden', state.zones.length > 0);
 }
 
-function renderConvertZoneOptions() {
-  const select = el('convert-zone');
-  const current = select.value;
-  select.innerHTML = state.zones
+function renderZoneSelects() {
+  const options = state.zones
     .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}　${escapeHtml(item.displayName)}</option>`)
     .join('');
-  if (state.zones.some((item) => item.id === current)) select.value = current;
+  ['convert-zone', 'reverse-target-zone', 'reverse-source-zone'].forEach((id) => {
+    const select = el(id);
+    const current = select.value;
+    select.innerHTML = options;
+    if (state.zones.some((item) => item.id === current)) select.value = current;
+  });
+  // 反推台第一次填选项时给个顺手的默认：对方选第一个，我们这边优先中国标准时间
+  if (!state.reverseDefaultsSet && state.zones.length > 0) {
+    const home = state.zones.find((item) => item.name === 'Asia/Shanghai') || state.zones[0];
+    const other = state.zones.find((item) => item.id !== home.id) || state.zones[0];
+    el('reverse-source-zone').value = home.id;
+    el('reverse-target-zone').value = other.id;
+    state.reverseDefaultsSet = true;
+  }
 }
 
 function openZoneForm(zone) {
@@ -264,7 +277,8 @@ async function runConvert() {
 }
 
 function renderConvert(result) {
-  el('convert-meta').textContent = `来源 ${result.input.zoneName}（${result.input.zoneDisplayName}，${result.input.offsetText}）的 ${result.input.date} ${result.input.time}，换算时刻 ${formatTime(result.convertedAt)}；参与换算的档案 ${result.zonesInScope} 条，与来源不同天的有 ${result.crossDayCount} 条，最大时差 ${Math.floor(result.maxDiffMinutes / 60)} 小时 ${result.maxDiffMinutes % 60} 分`;
+  const note = result.sourceNote ? `；${result.sourceNote}` : '';
+  el('convert-meta').textContent = `来源 ${result.input.zoneName}（${result.input.zoneDisplayName}，${result.input.offsetText}）的 ${result.input.date} ${result.input.time}，换算时刻 ${formatTime(result.convertedAt)}；参与换算的档案 ${result.zonesInScope} 条，与来源不同天的有 ${result.crossDayCount} 条，最大时差 ${Math.floor(result.maxDiffMinutes / 60)} 小时 ${result.maxDiffMinutes % 60} 分${note}`;
   const body = el('convert-body');
   body.innerHTML = result.results.map((item) => `<tr class="${item.isSource ? 'source-row' : ''}">
       <td class="mono">${escapeHtml(item.name)}</td>
@@ -275,9 +289,52 @@ function renderConvert(result) {
       <td><span class="tag ${item.dayOffset === 0 ? 'off' : 'warn'}">${escapeHtml(item.dayOffsetText)}</span></td>
       <td class="mono">${escapeHtml(item.offsetText)}</td>
       <td>${escapeHtml(item.diffText)}</td>
-      <td>${item.usesDst ? '有规则' : '—'}</td>
+      <td>${item.usesDst ? (item.dstActive ? '<span class="tag on">夏令时中</span>' : '<span class="tag off">标准时</span>') : '—'}</td>
     </tr>`).join('');
   el('convert-empty').classList.toggle('hidden', result.results.length > 0);
+}
+
+async function runReverse() {
+  clearNotice();
+  const payload = {
+    date: el('reverse-date').value,
+    time: el('reverse-time').value,
+    targetZoneId: el('reverse-target-zone').value,
+    sourceZoneId: el('reverse-source-zone').value,
+  };
+  try {
+    const result = await request('/api/convert/reverse', { method: 'POST', body: JSON.stringify(payload) });
+    state.lastReverse = result;
+    renderReverse(result);
+  } catch (err) {
+    notify(err.message, 'error');
+    markField(err.field);
+  }
+}
+
+function renderReverse(result) {
+  el('reverse-meta').textContent = `对方 ${result.input.targetZoneName}（${result.input.targetDisplayName}）的 ${result.input.date} ${result.input.time}，反推我们这边 ${result.input.sourceZoneName}（${result.input.sourceDisplayName}），换算时刻 ${formatTime(result.convertedAt)}`;
+  const status = el('reverse-status');
+  status.className = `reverse-status ${result.status}`;
+  status.textContent = `${result.statusText}：${result.detail}`;
+  const body = el('reverse-body');
+  body.innerHTML = result.candidates.map((item) => `<tr>
+      <td><span class="tag ${result.status === 'ambiguous' ? 'warn' : 'off'}">${escapeHtml(item.occurrenceText)}</span></td>
+      <td>${escapeHtml(item.offsetKindText)}　<span class="mono">${escapeHtml(item.targetOffsetText)}</span></td>
+      <td class="mono">${escapeHtml(item.utcDate)} ${escapeHtml(item.utcTime)}</td>
+      <td class="mono">${escapeHtml(item.sourceDate)}</td>
+      <td class="mono strong">${escapeHtml(item.sourceTime)}</td>
+      <td>${escapeHtml(item.sourceWeekday)}</td>
+      <td><span class="tag ${item.sourceDayOffset === 0 ? 'off' : 'warn'}">${escapeHtml(item.sourceDayOffsetText)}</span></td>
+      <td>${item.verified ? '<span class="tag on">通过</span>' : '<span class="tag danger">未通过</span>'}</td>
+    </tr>`).join('');
+  el('reverse-empty').classList.toggle('hidden', result.candidates.length > 0);
+  const verify = el('reverse-verify');
+  verify.className = `verify-conclusion${result.verification.allPassed ? ' ok' : result.candidates.length ? ' error' : ''}`;
+  const lines = result.candidates
+    .map((item) => `<li>${escapeHtml(item.occurrenceText)}：${escapeHtml(item.verifyText)}</li>`)
+    .join('');
+  verify.innerHTML = `<strong>正推验证</strong>：${escapeHtml(result.verification.conclusion)}${lines ? `<ul>${lines}</ul>` : ''}`;
 }
 
 // 列表上的操作用事件委托统一处理，列表重绘之后不需要重新绑定
@@ -330,6 +387,7 @@ el('zone-filter-dst').addEventListener('change', () => {
   loadZones().catch((err) => notify(err.message, 'error'));
 });
 el('convert-run').addEventListener('click', runConvert);
+el('reverse-run').addEventListener('click', runReverse);
 el('operator').addEventListener('change', () => {
   window.localStorage.setItem(OPERATOR_KEY, currentOperator());
 });
@@ -339,6 +397,9 @@ fillOptions();
 restoreOperator();
 loadHealth();
 const now = new Date();
-el('convert-date').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+const todayText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+el('convert-date').value = todayText;
 el('convert-time').value = '09:30';
+el('reverse-date').value = todayText;
+el('reverse-time').value = '09:30';
 loadZones().catch((err) => notify(err.message, 'error'));

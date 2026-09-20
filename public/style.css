@@ -283,6 +283,70 @@ tr.source-row td {
   color: #8a5a00;
 }
 
+.tag.danger {
+  background: #fdeeee;
+  color: var(--danger);
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.reverse-status {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f9fafc;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.reverse-status.unique {
+  border-color: #b7ddc9;
+  background: #eefaf3;
+  color: var(--ok);
+}
+
+.reverse-status.ambiguous {
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+  color: #8a5a00;
+}
+
+.reverse-status.impossible {
+  border-color: #f0c2c2;
+  background: #fdeeee;
+  color: var(--danger);
+}
+
+.verify-conclusion {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f9fafc;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.verify-conclusion.ok {
+  border-color: #b7ddc9;
+  background: #eefaf3;
+  color: var(--ok);
+}
+
+.verify-conclusion.error {
+  border-color: #f0c2c2;
+  background: #fdeeee;
+  color: var(--danger);
+}
+
+.verify-conclusion ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
 .empty-tip {
   margin: 12px 0 0;
   color: var(--ink-soft);
